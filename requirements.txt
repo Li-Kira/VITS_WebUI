@@ -1,0 +1,12 @@
+Cython
+librosa
+matplotlib
+numpy
+scipy
+tensorboard
+torch
+torchvision
+unidecode
+pyopenjtalk
+protobuf
+tqdm
