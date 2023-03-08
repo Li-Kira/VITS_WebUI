@@ -1,0 +1,12 @@
+{
+	"yuuka": {
+		"name_en": "Yuuka",
+		"name_zh": "优香",
+        "cover": "yuuka.png",
+		"sid": 0,
+		"example": "それに新しいお菓子屋さんも出来てみんな買いものを楽しんでいます！",
+		"language": "Japanese",
+		"type": "single"
+    }
+
+}
