@@ -1,0 +1,15 @@
+wavs/yuuka/33.wav|0|スマホゲームのガチャ
+wavs/yuuka/34.wav|0|切り戻し
+wavs/yuuka/35.wav|0|それでも
+wavs/yuuka/36.wav|0|衝動買いは禁止
+wavs/yuuka/37.wav|0|消費はちゃんと
+wavs/yuuka/38.wav|0|計画的に
+wavs/yuuka/39.wav|0|少し休んで行きますか
+wavs/yuuka/40.wav|0|私も
+wavs/yuuka/41.wav|0|なんだか今日は
+wavs/yuuka/42.wav|0|楽しいことがありそうな気がする
+wavs/yuuka/43.wav|0|確率的に
+wavs/yuuka/44.wav|0|このままだと破産する
+wavs/yuuka/45.wav|0|出勤を減らさないと
+wavs/yuuka/46.wav|0|もしこれを購入したら
+wavs/yuuka/47.wav|0|それは辛いけど
