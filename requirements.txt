@@ -10,3 +10,4 @@ unidecode
 pyopenjtalk
 protobuf
 tqdm
+gradio
