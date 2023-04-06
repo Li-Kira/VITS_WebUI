@@ -6,7 +6,7 @@ if __name__ == '__main__':
   parser = argparse.ArgumentParser()
   parser.add_argument("--out_extension", default="cleaned")
   parser.add_argument("--text_index", default=2, type=int)
-  parser.add_argument("--filelists", nargs="+", default=["filelists/miyu_train.txt", "filelists/miyu_val.txt"])
+  parser.add_argument("--filelists", nargs="+", default=["filelists/yuuka_train.txt", "filelists/yuuka_val.txt"])
   parser.add_argument("--text_cleaners", nargs="+", default=["japanese_cleaners"])
 
   args = parser.parse_args()
