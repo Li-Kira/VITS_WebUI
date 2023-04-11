@@ -7,7 +7,7 @@
 ## Display
 TTS:
 
-![image](https://user-images.githubusercontent.com/62274988/231162607-f4f3e703-16c1-42c3-96dd-8558c1dc342e.png)
+![image](https://user-images.githubusercontent.com/62274988/231185600-feb2fec3-24cd-4695-beab-0362ef4286f6.png)
 
 Setting:
 
