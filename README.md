@@ -36,7 +36,7 @@
 pip install - r requirements.txt
 ```
 
-2.Run` setup.py` 启动环境
+2.Run`setup.py` 启动环境
 
 ```
 %cd VITS_WebUI\monotonic_align
@@ -141,7 +141,7 @@ http://127.0.0.1:7860/
 
 - **Blocks:**
 
-  > **能创建自定义的UI，搭配CSS食用更佳：**https://gradio.app/custom-CSS-and-JS/
+  > **能创建自定义的UI，搭配CSS食用更佳：** https://gradio.app/custom-CSS-and-JS/
 
 - **Markdown:**
 
@@ -191,7 +191,7 @@ http://127.0.0.1:7860/
   > interface.queue(concurrency_count=1).launch(debug=True)
   > ```
   >
-  > `queue(concurrency_count=1)`开启可以显示进程的执行时间，`debug=True`这个参数默认是**False**，开启后可以使用debug功能，定位到错误信息。
+  > `queue(concurrency_count=1)`开启可以显示进程的执行时间，`debug`这个参数默认是**False**，开启后可以使用debug功能，定位到错误信息。
 
 
 
