@@ -60,7 +60,7 @@ pip install - r requirements.txt
 http://127.0.0.1:7860/
 ```
 
-
+5.在**Settings**中导入模型信息，并将训练好的checkpoints文件改名为对应`name_en.pth`并放到**models**目录下对应生成的文件夹中。
 
 ## Detail 
 
