@@ -42,7 +42,6 @@ net_g = SynthesizerTrn(
 model = net_g.eval()
 model = utils.load_checkpoint(MODEL_PATH, net_g, None)
 
-
 def load_model():
     global hps,net_g,model
 
@@ -76,7 +75,7 @@ def tts_fn(text, noise_scale, noise_scale_w, length_scale):
 def add_model_fn(example_text, cover, speakerID, name_en, name_cn, language):
 
     # 检查必填字段是否为空
-    if not SPEAKER_ID or not name_en or not language:
+    if not speakerID or not name_en or not language:
         raise gr.Error("Please fill in all required fields!")
         return "Failed to add model"
 
@@ -95,7 +94,7 @@ def add_model_fn(example_text, cover, speakerID, name_en, name_cn, language):
     if cover is not None:
         img = np.array(cover)
         img = Image.fromarray(img)
-        img.save(os.path.join(img_save_dir, 'cover_white_background.png'))
+        img.save(os.path.join(img_save_dir, 'cover.png'))
 
     #获取用户输入
     new_model = {
