@@ -24,6 +24,11 @@
 - Switch checkpoints 切换模型
 - Display example text 实例文本显示
 
+## Terms of Use
+
+🚨**Please resolve the dataset authorization issues by yourself. Any problems caused by using unauthorized datasets for training are at your own risk and responsibility.This project does not provide datasets or model files.**
+
+🚨**请自行解决数据集授权问题，任何因使用未经授权的数据集进行训练而造成的问题，由您自行承担风险和责任。本项目不提供数据集以及模型文件。**
 
 
 ## Getting started
@@ -61,6 +66,8 @@ http://127.0.0.1:7860/
 ```
 
 5.在**Settings**中导入模型信息，并将训练好的checkpoints文件改名为对应`name_en.pth`并放到**models**目录下对应生成的文件夹中。
+> 首次运行请在`models/Yuuka`中放入任意checkpoints
+
 
 ## Detail 
 
