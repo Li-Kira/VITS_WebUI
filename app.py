@@ -17,13 +17,21 @@ import numpy as np
 import os
 from pathlib import Path
 
-LANGUAGES = ['EN','CN','JP']
-speaker_id = 0
-config_path = "configs/config.json"
-model_path = "G:\AI\Model\VITS\Yuuka\G_4000.pth"
-cover = "models/Yuuka/cover.png"
 
-hps = utils.get_hparams_from_file(config_path)
+
+
+LANGUAGES = ['EN','CN','JP']
+SPEAKER_ID = 0
+COVER = "models/Yuuka/cover.png"
+speaker_choice = "Yuuka"
+MODEL_ZH_NAME = "早濑优香"
+EXAMPLE_TEXT = "先生。今日も全力であなたをアシストしますね。"
+#USER_INPUT_TEXT = ""
+
+CONFIG_PATH = "configs/config.json"
+MODEL_PATH = "models/Yuuka/Yuuka.pth"
+
+hps = utils.get_hparams_from_file(CONFIG_PATH)
 net_g = SynthesizerTrn(
     len(hps.symbols),
     hps.data.filter_length // 2 + 1,
@@ -32,9 +40,22 @@ net_g = SynthesizerTrn(
     **hps.model).cuda()
 
 model = net_g.eval()
-model = utils.load_checkpoint(model_path, net_g, None)
+model = utils.load_checkpoint(MODEL_PATH, net_g, None)
 
 
+def load_model():
+    global hps,net_g,model
+
+    hps = utils.get_hparams_from_file(CONFIG_PATH)
+    net_g = SynthesizerTrn(
+    len(hps.symbols),
+    hps.data.filter_length // 2 + 1,
+    hps.train.segment_size // hps.data.hop_length,
+    n_speakers=hps.data.n_speakers,
+    **hps.model).cuda()
+
+    model = net_g.eval()
+    model = utils.load_checkpoint(MODEL_PATH, net_g, None)
 
 def get_text(text, hps):
     text_norm = text_to_sequence(text, hps.data.text_cleaners)
@@ -43,23 +64,19 @@ def get_text(text, hps):
     text_norm = torch.LongTensor(text_norm)
     return text_norm
 
-
-
 def tts_fn(text, noise_scale, noise_scale_w, length_scale):
   stn_tst = get_text(text, hps)
   with torch.no_grad():
     x_tst = stn_tst.cuda().unsqueeze(0)
     x_tst_lengths = torch.LongTensor([stn_tst.size(0)]).cuda()
-    sid = torch.LongTensor([speaker_id]).cuda()
+    sid = torch.LongTensor([SPEAKER_ID]).cuda()
     audio = net_g.infer(x_tst, x_tst_lengths, sid=sid, noise_scale=noise_scale, noise_scale_w=noise_scale_w, length_scale=length_scale)[0][0,0].data.cpu().float().numpy()
   return  (22050, audio)
 
-def add_model_fn(example_text, cover, SpeakerID, name_en, name_cn, language):
-
-
+def add_model_fn(example_text, cover, speakerID, name_en, name_cn, language):
 
     # 检查必填字段是否为空
-    if not speaker_id or not name_en or not language:
+    if not SPEAKER_ID or not name_en or not language:
         raise gr.Error("Please fill in all required fields!")
         return "Failed to add model"
 
@@ -71,7 +88,6 @@ def add_model_fn(example_text, cover, SpeakerID, name_en, name_cn, language):
     img_save_dir = model_save_dir
     model_save_dir.mkdir(parents=True, exist_ok=True)
 
-
     Model_name = name_en + ".pth"
     model_save_dir = model_save_dir / Model_name
 
@@ -81,20 +97,17 @@ def add_model_fn(example_text, cover, SpeakerID, name_en, name_cn, language):
         img = Image.fromarray(img)
         img.save(os.path.join(img_save_dir, 'cover_white_background.png'))
 
-
-
     #获取用户输入
     new_model = {
         "name_en": name_en,
         "name_zh": name_cn,
         "cover": img_save_dir / "cover.png",
-        "sid": SpeakerID,
-        "example": "それに新しいお菓子屋さんも出来てみんな買いものを楽しんでいます！",
+        "sid": speakerID,
+        "example": example_text,
         "language": language,
         "type": "single",
         "model_path": model_save_dir
     }
-
 
     #写入json
     with open("models/model_info.json", "r", encoding="utf-8") as f:
@@ -107,22 +120,69 @@ def add_model_fn(example_text, cover, SpeakerID, name_en, name_cn, language):
 
     return "Success"
 
+def clear_input_text():
+    return ""
+
+def clear_add_model_info():
+    return "",None,"","","",""
+
+def get_options():
+  with open("models/model_info.json", "r", encoding="utf-8") as f:
+    global models_info
+    models_info = json.load(f)
+
+  for i,model_info in models_info.items():
+    global name_en
+    name_en = model_info['name_en']
+
+def reset_options():
+  value_model_choice = models_info['Yuuka']['name_en']
+  value_speaker_id = models_info['Yuuka']['sid']
+  return value_model_choice,value_speaker_id
+
+def refresh_options():
+  get_options()
+  value_model_choice = models_info[speaker_choice]['name_en']
+  value_speaker_id = models_info[speaker_choice]['sid']
+  return value_model_choice,value_speaker_id
+
+def change_dropdown(choice):
+  global speaker_choice
+  speaker_choice = choice
+  global COVER
+  COVER = str(models_info[speaker_choice]['cover'])
+  global MODEL_PATH
+  MODEL_PATH = str(models_info[speaker_choice]['model_path'])
+  global MODEL_ZH_NAME
+  MODEL_ZH_NAME = str(models_info[speaker_choice]['name_zh'])
+  global EXAMPLE_TEXT
+  EXAMPLE_TEXT = str(models_info[speaker_choice]['example'])
+
+  speaker_id_change = gr.update(value=str(models_info[speaker_choice]['sid']))
+  cover_change = gr.update(value='<div align="center">'
+                f'<img style="width:auto;height:512px;" src="file/{COVER}">' if COVER else ""
+                f'<a><strong>{speaker_choice}</strong></a>'
+                                                                                           '</div>')
+  title_change = gr.update(value=
+                '<div align="center">'
+                f'<h3><a><strong>{"语音名称: "}{MODEL_ZH_NAME}</strong></a>'
+                f'<h3><strong>{"checkpoint: "}{speaker_choice}</strong>'
+                                                                                           '</div>')
+
+
+  lan_change = gr.update(value=str(models_info[speaker_choice]['language']))
+
+  example_change = gr.update(value=EXAMPLE_TEXT)
+
+  load_model()
+
+  return [speaker_id_change,cover_change,title_change,lan_change,example_change]
+
 class CustomEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, Path):
             return str(obj)
         return super().default(obj)
-
-def clear_input_text():
-    return ""
-
-
-def clear_add_model_info():
-    return "",None,"","","",""
-
-
-
-
 
 download_audio_js = """
 () =>{{
@@ -153,15 +213,7 @@ download_audio_js = """
 
 
 
-
-
-
-
-
-
 if __name__ == '__main__':
-
-
 
     with open("models/model_info.json", "r", encoding="utf-8") as f:
         models_info = json.load(f)
@@ -170,15 +222,20 @@ if __name__ == '__main__':
         name_en = model_info['name_en']
 
 
-    ### GUI
     theme = gr.themes.Base()
+
     with gr.Blocks(theme=theme) as interface:
         with gr.Tab("Text to Speech"):
             with gr.Column():
-                gr.Markdown(
+                cover_markdown = gr.Markdown(
                     '<div align="center">'
-                    f'<img style="width:auto;height:512px;" src="file/{cover}">' if cover else ""
+                    f'<img style="width:auto;height:512px;" src="file/{COVER}">' if COVER else ""
                                                                                                '</div>')
+                title_markdown = gr.Markdown(
+                    '<div align="center">'
+                    f'<h3><a><strong>{"语音名称: "}{MODEL_ZH_NAME}</strong></a>'
+                    f'<h3><strong>{"checkpoint: "}{speaker_choice}</strong>'
+                    '</div>')
 
                 with gr.Row():
                     with gr.Column(scale=4):
@@ -195,7 +252,7 @@ if __name__ == '__main__':
 
                 with gr.Row():
                     with gr.Column(scale=2):
-                        lan = [gr.Radio(label="Language", choices=LANGUAGES, value="JP")]
+                        lan = gr.Radio(label="Language", choices=LANGUAGES, value="JP")
                         noise_scale = gr.Slider(minimum=0.1, maximum=1.0, step=0.1, label="Noise Scale (情感变化程度)",
                                                 value=0.6)
                         noise_scale_w = gr.Slider(minimum=0.1, maximum=1.0, step=0.1, label="Noise Scale w (发音长度)",
@@ -204,10 +261,20 @@ if __name__ == '__main__':
                                                  value=1.0)
 
                     with gr.Column(scale=1):
+                        example_text_box = gr.Textbox(label="Example:",
+                                                      value=EXAMPLE_TEXT)
+
                         output_audio = gr.Audio(label="Output", elem_id=f"tts-audio-en-{name_en.replace(' ', '')}")
                         download_button = gr.Button("Download")
 
-            # clear_input_button.click()
+                        # example = gr.Examples(
+                        #     examples = [EXAMPLE_TEXT],
+                        #     inputs=input_text,
+                        #     outputs = output_audio,
+                        #     fn=example_tts_fn,
+                        #     cache_examples=True
+                        # )
+
             gen_button.click(
                 tts_fn,
                 inputs=[input_text, noise_scale, noise_scale_w, length_scale],
@@ -235,18 +302,25 @@ if __name__ == '__main__':
                         model_choice = gr.Dropdown(label="Model",
                                                    choices=[(model["name_en"]) for name, model in models_info.items()],
                                                    interactive=True,
-                                                   value=models_info['yuuka']['name_en']
+                                                   value=models_info['Yuuka']['name_en']
                                                    )
                     with gr.Column(scale=5):
-                        speaker_id = gr.Dropdown(label="Speaker ID",
-                                                 choices=[(str(model["sid"])) for name, model in models_info.items()],
-                                                 interactive=True,
-                                                 value=str(models_info['yuuka']['sid'])
-                                                 )
+                        speaker_id_choice = gr.Dropdown(label="Speaker ID",
+                                                        choices=[(str(model["sid"])) for name, model in
+                                                                 models_info.items()],
+                                                        interactive=True,
+                                                        value=str(models_info['Yuuka']['sid'])
+                                                        )
 
                     with gr.Column(scale=1):
                         refresh_button = gr.Button("Refresh", variant="primary")
                         reset_button = gr.Button("Reset")
+
+            model_choice.change(fn=change_dropdown, inputs=model_choice,
+                                outputs=[speaker_id_choice, cover_markdown, title_markdown, lan, example_text_box])
+
+            refresh_button.click(fn=refresh_options, outputs=[model_choice, speaker_id_choice])
+            reset_button.click(reset_options, outputs=[model_choice, speaker_id_choice])
 
             with gr.Box():
                 gr.Markdown("# Add Model\n"
@@ -287,11 +361,6 @@ if __name__ == '__main__':
                                          )
 
     interface.queue(concurrency_count=1).launch(debug=True)
-
-
-
-
-
 
 
 
