@@ -11,3 +11,9 @@ pyopenjtalk
 protobuf
 tqdm
 gradio
+openai
+jamo
+pypinyin
+jieba
+cn2an
+

@@ -8,7 +8,7 @@ _symbol_to_id = {s: i for i, s in enumerate(symbols)}
 _id_to_symbol = {i: s for i, s in enumerate(symbols)}
 
 
-def text_to_sequence(text, cleaner_names):
+def text_to_sequence(text, symbols, cleaner_names):
   '''Converts a string of text to a sequence of IDs corresponding to the symbols in the text.
     Args:
       text: string to convert to a sequence
@@ -16,6 +16,7 @@ def text_to_sequence(text, cleaner_names):
     Returns:
       List of integers corresponding to the symbols in the text
   '''
+  _symbol_to_id = {s: i for i, s in enumerate(symbols)}
   sequence = []
 
   clean_text = _clean_text(text, cleaner_names)
@@ -24,7 +25,7 @@ def text_to_sequence(text, cleaner_names):
       continue
     symbol_id = _symbol_to_id[symbol]
     sequence += [symbol_id]
-  return sequence
+  return sequence, clean_text
 
 
 def cleaned_text_to_sequence(cleaned_text):

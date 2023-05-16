@@ -16,8 +16,8 @@ from PIL import Image
 import numpy as np
 import os
 from pathlib import Path
-
-
+import openai
+import soundfile as sf
 
 
 LANGUAGES = ['EN','CN','JP']
@@ -42,19 +42,21 @@ net_g = SynthesizerTrn(
 model = net_g.eval()
 model = utils.load_checkpoint(MODEL_PATH, net_g, None)
 
+
 def load_model():
-    global hps,net_g,model
+    global hps, net_g, model
 
     hps = utils.get_hparams_from_file(CONFIG_PATH)
     net_g = SynthesizerTrn(
-    len(hps.symbols),
-    hps.data.filter_length // 2 + 1,
-    hps.train.segment_size // hps.data.hop_length,
-    n_speakers=hps.data.n_speakers,
-    **hps.model).cuda()
+        len(hps.symbols),
+        hps.data.filter_length // 2 + 1,
+        hps.train.segment_size // hps.data.hop_length,
+        n_speakers=hps.data.n_speakers,
+        **hps.model).cuda()
 
     model = net_g.eval()
     model = utils.load_checkpoint(MODEL_PATH, net_g, None)
+
 
 def get_text(text, hps):
     text_norm = text_to_sequence(text, hps.data.text_cleaners)
@@ -63,19 +65,21 @@ def get_text(text, hps):
     text_norm = torch.LongTensor(text_norm)
     return text_norm
 
+
 def tts_fn(text, noise_scale, noise_scale_w, length_scale):
-  stn_tst = get_text(text, hps)
-  with torch.no_grad():
-    x_tst = stn_tst.cuda().unsqueeze(0)
-    x_tst_lengths = torch.LongTensor([stn_tst.size(0)]).cuda()
-    sid = torch.LongTensor([SPEAKER_ID]).cuda()
-    audio = net_g.infer(x_tst, x_tst_lengths, sid=sid, noise_scale=noise_scale, noise_scale_w=noise_scale_w, length_scale=length_scale)[0][0,0].data.cpu().float().numpy()
-  return  (22050, audio)
+    stn_tst = get_text(text, hps)
+    with torch.no_grad():
+        x_tst = stn_tst.cuda().unsqueeze(0)
+        x_tst_lengths = torch.LongTensor([stn_tst.size(0)]).cuda()
+        sid = torch.LongTensor([SPEAKER_ID]).cuda()
+        audio = net_g.infer(x_tst, x_tst_lengths, sid=sid, noise_scale=noise_scale, noise_scale_w=noise_scale_w,
+                            length_scale=length_scale)[0][0, 0].data.cpu().float().numpy()
+    return (22050, audio)
+
 
 def add_model_fn(example_text, cover, speakerID, name_en, name_cn, language):
-
     # 检查必填字段是否为空
-    if not speakerID or not name_en or not language:
+    if not SPEAKER_ID or not name_en or not language:
         raise gr.Error("Please fill in all required fields!")
         return "Failed to add model"
 
@@ -94,9 +98,9 @@ def add_model_fn(example_text, cover, speakerID, name_en, name_cn, language):
     if cover is not None:
         img = np.array(cover)
         img = Image.fromarray(img)
-        img.save(os.path.join(img_save_dir, 'cover.png'))
+        img.save(os.path.join(img_save_dir, 'cover_white_background.png'))
 
-    #获取用户输入
+    # 获取用户输入
     new_model = {
         "name_en": name_en,
         "name_zh": name_cn,
@@ -108,7 +112,7 @@ def add_model_fn(example_text, cover, speakerID, name_en, name_cn, language):
         "model_path": model_save_dir
     }
 
-    #写入json
+    # 写入json
     with open("models/model_info.json", "r", encoding="utf-8") as f:
         models_info = json.load(f)
 
@@ -116,66 +120,115 @@ def add_model_fn(example_text, cover, speakerID, name_en, name_cn, language):
     with open("models/model_info.json", "w") as f:
         json.dump(models_info, f, cls=CustomEncoder)
 
-
     return "Success"
+
 
 def clear_input_text():
     return ""
 
+
 def clear_add_model_info():
-    return "",None,"","","",""
+    return "", None, "", "", "", ""
+
 
 def get_options():
-  with open("models/model_info.json", "r", encoding="utf-8") as f:
-    global models_info
-    models_info = json.load(f)
+    with open("models/model_info.json", "r", encoding="utf-8") as f:
+        global models_info
+        models_info = json.load(f)
 
-  for i,model_info in models_info.items():
-    global name_en
-    name_en = model_info['name_en']
+    for i, model_info in models_info.items():
+        global name_en
+        name_en = model_info['name_en']
+
 
 def reset_options():
-  value_model_choice = models_info['Yuuka']['name_en']
-  value_speaker_id = models_info['Yuuka']['sid']
-  return value_model_choice,value_speaker_id
+    value_model_choice = models_info['Yuuka']['name_en']
+    value_speaker_id = models_info['Yuuka']['sid']
+    return value_model_choice, value_speaker_id
+
 
 def refresh_options():
-  get_options()
-  value_model_choice = models_info[speaker_choice]['name_en']
-  value_speaker_id = models_info[speaker_choice]['sid']
-  return value_model_choice,value_speaker_id
+    get_options()
+    value_model_choice = models_info[speaker_choice]['name_en']
+    value_speaker_id = models_info[speaker_choice]['sid']
+    return value_model_choice, value_speaker_id
+
 
 def change_dropdown(choice):
-  global speaker_choice
-  speaker_choice = choice
-  global COVER
-  COVER = str(models_info[speaker_choice]['cover'])
-  global MODEL_PATH
-  MODEL_PATH = str(models_info[speaker_choice]['model_path'])
-  global MODEL_ZH_NAME
-  MODEL_ZH_NAME = str(models_info[speaker_choice]['name_zh'])
-  global EXAMPLE_TEXT
-  EXAMPLE_TEXT = str(models_info[speaker_choice]['example'])
+    global speaker_choice
+    speaker_choice = choice
+    global COVER
+    COVER = str(models_info[speaker_choice]['cover'])
+    global MODEL_PATH
+    MODEL_PATH = str(models_info[speaker_choice]['model_path'])
+    global MODEL_ZH_NAME
+    MODEL_ZH_NAME = str(models_info[speaker_choice]['name_zh'])
+    global EXAMPLE_TEXT
+    EXAMPLE_TEXT = str(models_info[speaker_choice]['example'])
 
-  speaker_id_change = gr.update(value=str(models_info[speaker_choice]['sid']))
-  cover_change = gr.update(value='<div align="center">'
-                f'<img style="width:auto;height:512px;" src="file/{COVER}">' if COVER else ""
-                f'<a><strong>{speaker_choice}</strong></a>'
-                                                                                           '</div>')
-  title_change = gr.update(value=
-                '<div align="center">'
-                f'<h3><a><strong>{"语音名称: "}{MODEL_ZH_NAME}</strong></a>'
-                f'<h3><strong>{"checkpoint: "}{speaker_choice}</strong>'
-                                                                                           '</div>')
+    speaker_id_change = gr.update(value=str(models_info[speaker_choice]['sid']))
+    cover_change = gr.update(value='<div align="center">'
+                                   f'<img style="width:auto;height:512px;" src="file/{COVER}">' if COVER else ""
+                                                                                                              f'<a><strong>{speaker_choice}</strong></a>'
+                                                                                                              '</div>')
+    title_change = gr.update(value=
+                             '<div align="center">'
+                             f'<h3><a><strong>{"语音名称: "}{MODEL_ZH_NAME}</strong></a>'
+                             f'<h3><strong>{"checkpoint: "}{speaker_choice}</strong>'
+                             '</div>')
+
+    lan_change = gr.update(value=str(models_info[speaker_choice]['language']))
+
+    example_change = gr.update(value=EXAMPLE_TEXT)
+
+    ChatGPT_cover_change = gr.update(value='<div align="center">'
+                                           f'<img style="width:auto;height:512px;" src="file/{COVER}">' if COVER else ""
+                                                                                                                      f'<a><strong>{speaker_choice}</strong></a>'
+                                                                                                                      '</div>')
+    ChatGPT_title_change = gr.update(value=
+                                     '<div align="center">'
+                                     f'<h3><a><strong>{"语音名称: "}{MODEL_ZH_NAME}</strong></a>'
+                                     f'<h3><strong>{"checkpoint: "}{speaker_choice}</strong>'
+                                     '</div>')
+
+    load_model()
+
+    return [speaker_id_change, cover_change, title_change, lan_change, example_change, cover_change, title_change,
+            lan_change]
 
 
-  lan_change = gr.update(value=str(models_info[speaker_choice]['language']))
+def load_api_key(value):
+    openai.api_key = value
 
-  example_change = gr.update(value=EXAMPLE_TEXT)
 
-  load_model()
+def usr_input_update(value):
+    global USER_INPUT_TEXT
+    USER_INPUT_TEXT = value
 
-  return [speaker_id_change,cover_change,title_change,lan_change,example_change]
+
+def ChatGPT_Bot(history):
+    response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": history}
+        ]
+    )
+    text = response['choices'][0]['message']['content']
+
+    audio = tts_fn(text, 0.6, 0.668, 1.0)
+    audio_file_path = "output" + '.wav'
+    sf.write(audio_file_path, audio[1], audio[0], "PCM_16")
+
+    return [(history, text)], audio_file_path
+
+
+class CustomEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, Path):
+            return str(obj)
+        return super().default(obj)
+
 
 class CustomEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -220,6 +273,7 @@ if __name__ == '__main__':
     for i, model_info in models_info.items():
         name_en = model_info['name_en']
 
+    get_options()
 
     theme = gr.themes.Base()
 
@@ -286,11 +340,81 @@ if __name__ == '__main__':
 
         # ------------------------------------------------------------------------------------------------------------------------
         with gr.Tab("AI Singer"):
-            input_text_singer = gr.Textbox()
+            with gr.Row():
+                with gr.Column(scale=1):
+                    cover_markdown_vc = gr.Markdown(
+                        '<div align="center">'
+                        f'<img style="width:auto;height:512px;" src="file/{COVER}">' if COVER else ""
+                                                                                                   '</div>')
+                    title_markdown_vc = gr.Markdown(
+                        '<div align="center">'
+                        f'<h3><a><strong>{"语音名称: "}{MODEL_ZH_NAME}</strong></a>'
+                        f'<h3><strong>{"checkpoint: "}{speaker_choice}</strong>'
+                        '</div>')
+
+                with gr.Column(scale=2):
+                    with gr.Row():
+                        with gr.Column(scale=4):
+                            vc_audio_input = gr.Audio(label="Input Audio")
+                        with gr.Column(scale=1):
+                            vc_transform = gr.Number(label="Transform", value=1.0, interactive="True")
+                            vc_convert_button = gr.Button("Convert", variant="primary")
+                            vc_download_button = gr.Button("Download")
+
+                    with gr.Row():
+                        vc_audio_output = gr.Audio(label="Output Audio")
+                        # vc_example = gr.Examples()
 
         # ------------------------------------------------------------------------------------------------------------------------
         with gr.Tab("TTS with ChatGPT"):
-            input_text_gpt = gr.Textbox()
+            with gr.Row():
+                with gr.Column(scale=7):
+                    api_key = gr.Textbox(
+                        label="API Key",
+                        type="password")
+                    api_key.change(fn=load_api_key, inputs=api_key)
+                with gr.Column(scale=1):
+                    lan_ChatGPT = gr.Radio(label="Language", choices=LANGUAGES, value="JP")
+
+            with gr.Row():
+                with gr.Column(scale=1):
+                    user_input = gr.Textbox(
+                        show_label=False,
+                        placeholder="Enter text and press enter")
+
+                    with gr.Row():
+                        submit_button = gr.Button("Submit", variant="primary")
+                        submit_clear_button = gr.Button("Clear")
+
+                    cover_markdown_ChatGPT = gr.Markdown(
+                        '<div align="center">'
+                        f'<img style="width:auto;height:512px;" src="file/{COVER}">' if COVER else ""
+                                                                                                   '</div>')
+                    title_markdown_ChatGPT = gr.Markdown(
+                        '<div align="center">'
+                        f'<h3><a><strong>{"语音名称: "}{MODEL_ZH_NAME}</strong></a>'
+                        f'<h3><strong>{"checkpoint: "}{speaker_choice}</strong>'
+                        '</div>')
+                with gr.Column(scale=2):
+                    chatbot = gr.Chatbot([], elem_id="chatbot").style(height=500)
+                    ChatGPT_Audio = gr.Audio()
+
+            user_input.change(fn=usr_input_update, inputs=user_input)
+
+            # user_input.submit(add_text, [chatbot ,user_input], [chatbot ,user_input], queue=False).then(bot, chatbot, chatbot)
+            user_input.submit(
+                ChatGPT_Bot,
+                inputs=user_input,
+                outputs=[chatbot, ChatGPT_Audio])
+
+            submit_button.click(
+                fn=ChatGPT_Bot,
+                inputs=user_input,
+                outputs=[chatbot, ChatGPT_Audio])
+            submit_clear_button.click(
+                clear_input_text,
+                outputs=user_input
+            )
 
         # ------------------------------------------------------------------------------------------------------------------------
         with gr.Tab("Settings"):
@@ -315,8 +439,10 @@ if __name__ == '__main__':
                         refresh_button = gr.Button("Refresh", variant="primary")
                         reset_button = gr.Button("Reset")
 
+            ### 切换模型功能实现
             model_choice.change(fn=change_dropdown, inputs=model_choice,
-                                outputs=[speaker_id_choice, cover_markdown, title_markdown, lan, example_text_box])
+                                outputs=[speaker_id_choice, cover_markdown, title_markdown, lan, example_text_box,
+                                         cover_markdown_ChatGPT, title_markdown_ChatGPT, lan_ChatGPT])
 
             refresh_button.click(fn=refresh_options, outputs=[model_choice, speaker_id_choice])
             reset_button.click(reset_options, outputs=[model_choice, speaker_id_choice])
@@ -360,6 +486,8 @@ if __name__ == '__main__':
                                          )
 
     interface.queue(concurrency_count=1).launch(debug=True)
+
+
 
 
 
