@@ -14,7 +14,6 @@
 ![Snipaste_2023-05-19_20-51-53](https://github.com/Li-Kira/VITS_WebUI/assets/62274988/e943790b-e57a-4368-b1f0-b410945bba0f)
 
 
-
 ## Features
 
 - Text to Speech inference 文本转语音推理
@@ -32,7 +31,6 @@
 🚨**Please resolve the dataset authorization issues by yourself. Any problems caused by using unauthorized datasets for training are at your own risk and responsibility.This project does not provide datasets or model files.**
 
 🚨**请自行解决数据集授权问题，任何因使用未经授权的数据集进行训练而造成的问题，由您自行承担风险和责任。本项目不提供数据集以及模型文件。**
-
 
 ## Getting started
 
