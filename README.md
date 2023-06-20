@@ -11,6 +11,8 @@
 
 ![image](https://user-images.githubusercontent.com/62274988/231162669-10c84a50-1dd9-45f3-a4c9-85cd9daaf0d5.png)
 
+![Snipaste_2023-05-19_20-51-53](https://github.com/Li-Kira/VITS_WebUI/assets/62274988/e943790b-e57a-4368-b1f0-b410945bba0f)
+
 
 
 ## Features
@@ -23,6 +25,7 @@
 - Display model information 模型信息显示
 - Switch checkpoints 切换模型
 - Display example text 实例文本显示
+- ChatGPT API 接入ChatGPT
 
 ## Terms of Use
 
@@ -32,8 +35,6 @@
 
 
 ## Getting started
-
->### using Gradio 3.25.0
 
  1.Install requirment 安装依赖
 
