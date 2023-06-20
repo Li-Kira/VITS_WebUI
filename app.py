@@ -29,7 +29,7 @@ MODEL_ZH_NAME = "早濑优香"
 EXAMPLE_TEXT = "先生。今日も全力であなたをアシストしますね。"
 USER_INPUT_TEXT = ""
 CONFIG_PATH = "configs/config.json"
-MODEL_PATH = "models/Yuuka/Yuuka.pth"
+MODEL_PATH = "/content/drive/MyDrive/Colab Notebooks/PyTorch/Vits/Yuuka.pth"
 
 
 hps = utils.get_hparams_from_file(CONFIG_PATH)
@@ -473,7 +473,7 @@ def init():
   global CONFIG_PATH
   CONFIG_PATH = "configs/config.json"
   global MODEL_PATH
-  MODEL_PATH = "../drive/MyDrive/ML_Folder/Pytorch/Vits/G_4000.pth"
+  MODEL_PATH = "/content/drive/MyDrive/Colab Notebooks/PyTorch/Vits/Yuuka.pth"
 
   get_options()
 
@@ -735,7 +735,7 @@ if __name__ == '__main__':
                                                   model_name_cn, model_language]
                                          )
 
-    interface.queue(concurrency_count=1).launch(debug=True)
+    interface.launch(debug=True)
 
 
 
