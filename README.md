@@ -35,7 +35,6 @@
 
 ## Getting started
 
->### using Gradio 3.25.0
 
  1.Install requirment 安装依赖
 
