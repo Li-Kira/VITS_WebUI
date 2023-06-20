@@ -21,15 +21,16 @@ import soundfile as sf
 
 
 LANGUAGES = ['EN','CN','JP']
+SELECTED_LANGUAGE = "JP"
 SPEAKER_ID = 0
 COVER = "models/Yuuka/cover.png"
 speaker_choice = "Yuuka"
 MODEL_ZH_NAME = "早濑优香"
 EXAMPLE_TEXT = "先生。今日も全力であなたをアシストしますね。"
-#USER_INPUT_TEXT = ""
-
+USER_INPUT_TEXT = ""
 CONFIG_PATH = "configs/config.json"
 MODEL_PATH = "models/Yuuka/Yuuka.pth"
+
 
 hps = utils.get_hparams_from_file(CONFIG_PATH)
 net_g = SynthesizerTrn(
@@ -43,43 +44,58 @@ model = net_g.eval()
 model = utils.load_checkpoint(MODEL_PATH, net_g, None)
 
 
-def load_model():
-    global hps, net_g, model
-
-    hps = utils.get_hparams_from_file(CONFIG_PATH)
-    net_g = SynthesizerTrn(
-        len(hps.symbols),
-        hps.data.filter_length // 2 + 1,
-        hps.train.segment_size // hps.data.hop_length,
-        n_speakers=hps.data.n_speakers,
-        **hps.model).cuda()
-
-    model = net_g.eval()
-    model = utils.load_checkpoint(MODEL_PATH, net_g, None)
-
 
 def get_text(text, hps):
-    text_norm = text_to_sequence(text, hps.data.text_cleaners)
+    text_norm, clean_text = text_to_sequence(text, hps.symbols, hps.data.text_cleaners)
     if hps.data.add_blank:
         text_norm = commons.intersperse(text_norm, 0)
     text_norm = torch.LongTensor(text_norm)
-    return text_norm
+    return text_norm, clean_text
 
+
+limitation = os.getenv("SYSTEM") == "spaces"
 
 def tts_fn(text, noise_scale, noise_scale_w, length_scale):
-    stn_tst = get_text(text, hps)
+    if not len(text):
+        return "输入文本不能为空！", None, None
+    text = text.replace('\n', ' ').replace('\r', '').replace(" ", "")
+    if len(text) > 100 and limitation:
+        return f"输入文字过长！{len(text)}>100", None, None
+    if SELECTED_LANGUAGE == "JP":
+      text = f"[JA]{text}[JA]"
+    if SELECTED_LANGUAGE == "CN":
+      text = f"[ZH]{text}[ZH]"
+
+
+    stn_tst, clean_text = get_text(text, hps)
     with torch.no_grad():
         x_tst = stn_tst.cuda().unsqueeze(0)
         x_tst_lengths = torch.LongTensor([stn_tst.size(0)]).cuda()
         sid = torch.LongTensor([SPEAKER_ID]).cuda()
         audio = net_g.infer(x_tst, x_tst_lengths, sid=sid, noise_scale=noise_scale, noise_scale_w=noise_scale_w,
-                            length_scale=length_scale)[0][0, 0].data.cpu().float().numpy()
+                               length_scale=length_scale)[0][0, 0].data.cpu().float().numpy()
+
     return (22050, audio)
+
+def load_model():
+    global hps,net_g,model
+
+    hps = utils.get_hparams_from_file(CONFIG_PATH)
+    net_g = SynthesizerTrn(
+    len(hps.symbols),
+    hps.data.filter_length // 2 + 1,
+    hps.train.segment_size // hps.data.hop_length,
+    n_speakers=hps.data.n_speakers,
+    **hps.model).cuda()
+
+    model = net_g.eval()
+    model = utils.load_checkpoint(MODEL_PATH, net_g, None)
 
 
 def add_model_fn(example_text, cover, speakerID, name_en, name_cn, language):
+
     # 检查必填字段是否为空
-    if not SPEAKER_ID or not name_en or not language:
+    if not speakerID or not name_en or not language:
         raise gr.Error("Please fill in all required fields!")
         return "Failed to add model"
 
@@ -100,7 +116,7 @@ def add_model_fn(example_text, cover, speakerID, name_en, name_cn, language):
         img = Image.fromarray(img)
         img.save(os.path.join(img_save_dir, 'cover_white_background.png'))
 
-    # 获取用户输入
+    #获取用户输入
     new_model = {
         "name_en": name_en,
         "name_zh": name_cn,
@@ -112,7 +128,7 @@ def add_model_fn(example_text, cover, speakerID, name_en, name_cn, language):
         "model_path": model_save_dir
     }
 
-    # 写入json
+    #写入json
     with open("models/model_info.json", "r", encoding="utf-8") as f:
         models_info = json.load(f)
 
@@ -120,107 +136,347 @@ def add_model_fn(example_text, cover, speakerID, name_en, name_cn, language):
     with open("models/model_info.json", "w") as f:
         json.dump(models_info, f, cls=CustomEncoder)
 
+
     return "Success"
 
 
 def clear_input_text():
     return ""
 
-
 def clear_add_model_info():
-    return "", None, "", "", "", ""
-
+    return "",None,"","","",""
 
 def get_options():
-    with open("models/model_info.json", "r", encoding="utf-8") as f:
-        global models_info
-        models_info = json.load(f)
+  with open("models/model_info.json", "r", encoding="utf-8") as f:
+    global models_info
+    models_info = json.load(f)
 
-    for i, model_info in models_info.items():
-        global name_en
-        name_en = model_info['name_en']
+  for i,model_info in models_info.items():
+    global name_en
+    name_en = model_info['name_en']
 
 
 def reset_options():
-    value_model_choice = models_info['Yuuka']['name_en']
-    value_speaker_id = models_info['Yuuka']['sid']
-    return value_model_choice, value_speaker_id
-
+  value_model_choice = models_info['Yuuka']['name_en']
+  value_speaker_id = models_info['Yuuka']['sid']
+  return value_model_choice,value_speaker_id
 
 def refresh_options():
-    get_options()
-    value_model_choice = models_info[speaker_choice]['name_en']
-    value_speaker_id = models_info[speaker_choice]['sid']
-    return value_model_choice, value_speaker_id
-
+  get_options()
+  value_model_choice = models_info[speaker_choice]['name_en']
+  value_speaker_id = models_info[speaker_choice]['sid']
+  return value_model_choice,value_speaker_id
 
 def change_dropdown(choice):
-    global speaker_choice
-    speaker_choice = choice
-    global COVER
-    COVER = str(models_info[speaker_choice]['cover'])
-    global MODEL_PATH
-    MODEL_PATH = str(models_info[speaker_choice]['model_path'])
-    global MODEL_ZH_NAME
-    MODEL_ZH_NAME = str(models_info[speaker_choice]['name_zh'])
-    global EXAMPLE_TEXT
-    EXAMPLE_TEXT = str(models_info[speaker_choice]['example'])
+  global speaker_choice
+  speaker_choice = choice
+  global COVER
+  COVER = str(models_info[speaker_choice]['cover'])
+  global MODEL_PATH
+  MODEL_PATH = str(models_info[speaker_choice]['model_path'])
+  global MODEL_ZH_NAME
+  MODEL_ZH_NAME = str(models_info[speaker_choice]['name_zh'])
+  global EXAMPLE_TEXT
+  EXAMPLE_TEXT = str(models_info[speaker_choice]['example'])
+  global SELECTED_LANGUAGE
+  SELECTED_LANGUAGE = str(models_info[speaker_choice]['language'])
 
-    speaker_id_change = gr.update(value=str(models_info[speaker_choice]['sid']))
-    cover_change = gr.update(value='<div align="center">'
-                                   f'<img style="width:auto;height:512px;" src="file/{COVER}">' if COVER else ""
-                                                                                                              f'<a><strong>{speaker_choice}</strong></a>'
-                                                                                                              '</div>')
-    title_change = gr.update(value=
-                             '<div align="center">'
-                             f'<h3><a><strong>{"语音名称: "}{MODEL_ZH_NAME}</strong></a>'
-                             f'<h3><strong>{"checkpoint: "}{speaker_choice}</strong>'
-                             '</div>')
+  speaker_id_change = gr.update(value=str(models_info[speaker_choice]['sid']))
+  cover_change = gr.update(value='<div align="center">'
+                f'<img style="width:auto;height:512px;" src="file/{COVER}">' if COVER else ""
+                f'<a><strong>{speaker_choice}</strong></a>'
+                                                                                           '</div>')
+  title_change = gr.update(value=
+                '<div align="center">'
+                f'<h3><a><strong>{"语音名称: "}{MODEL_ZH_NAME}</strong></a>'
+                f'<h3><strong>{"checkpoint: "}{speaker_choice}</strong>'
+                                                                                           '</div>')
 
-    lan_change = gr.update(value=str(models_info[speaker_choice]['language']))
 
-    example_change = gr.update(value=EXAMPLE_TEXT)
+  lan_change = gr.update(value=str(models_info[speaker_choice]['language']))
 
-    ChatGPT_cover_change = gr.update(value='<div align="center">'
-                                           f'<img style="width:auto;height:512px;" src="file/{COVER}">' if COVER else ""
-                                                                                                                      f'<a><strong>{speaker_choice}</strong></a>'
-                                                                                                                      '</div>')
-    ChatGPT_title_change = gr.update(value=
-                                     '<div align="center">'
-                                     f'<h3><a><strong>{"语音名称: "}{MODEL_ZH_NAME}</strong></a>'
-                                     f'<h3><strong>{"checkpoint: "}{speaker_choice}</strong>'
-                                     '</div>')
+  example_change = gr.update(value=EXAMPLE_TEXT)
 
-    load_model()
+  VC_cover_change = gr.update(value=
+                '<div align="center">'
+                f'<img style="width:auto;height:512px;" src="file/{COVER}">' if COVER else "")
 
-    return [speaker_id_change, cover_change, title_change, lan_change, example_change, cover_change, title_change,
-            lan_change]
+  VC_title_change = gr.update(value=
+                '<div align="center">'
+                f'<h3><a><strong>{"语音名称: "}{MODEL_ZH_NAME}</strong></a>'
+                f'<h3><strong>{"checkpoint: "}{speaker_choice}</strong>')
+
+  ChatGPT_cover_change = gr.update(value='<div align="center">'
+                f'<img style="width:auto;height:512px;" src="file/{COVER}">' if COVER else ""
+                f'<a><strong>{speaker_choice}</strong></a>'
+                                                                                           '</div>')
+  ChatGPT_title_change = gr.update(value=
+                '<div align="center">'
+                f'<h3><a><strong>{"语音名称: "}{MODEL_ZH_NAME}</strong></a>'
+                f'<h3><strong>{"checkpoint: "}{speaker_choice}</strong>'
+                                                                                           '</div>')
+
+  load_model()
+
+  return [speaker_id_change,cover_change,title_change,lan_change,example_change,cover_change,title_change,lan_change,cover_change,title_change]
 
 
 def load_api_key(value):
-    openai.api_key = value
-
+  openai.api_key = value
 
 def usr_input_update(value):
-    global USER_INPUT_TEXT
-    USER_INPUT_TEXT = value
+  global USER_INPUT_TEXT
+  USER_INPUT_TEXT = value
 
 
-def ChatGPT_Bot(history):
+# def ChatGPT_Bot(history):
+#     response = openai.ChatCompletion.create(
+#       model="gpt-3.5-turbo",
+#       messages=[
+#           {"role": "system", "content": "You are a helpful assistant."},
+#           {"role": "user", "content": history}
+#         ]
+#     )
+#     text = response['choices'][0]['message']['content']
+
+#     audio = tts_fn(text, 0.6, 0.668, 1.0)
+#     audio_file_path = "output" + '.wav'
+#     sf.write(audio_file_path, audio[1], audio[0], "PCM_16")
+
+#     return [(history, text)],audio_file_path
+
+def ChatGPT_Bot(input,history):
     response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": history}
+      model="gpt-3.5-turbo",
+      messages=[
+          {"role": "system", "content": "You are a helpful assistant."},
+          {"role": "user", "content": input}
         ]
     )
     text = response['choices'][0]['message']['content']
+
+    history.append((input, text))
 
     audio = tts_fn(text, 0.6, 0.668, 1.0)
     audio_file_path = "output" + '.wav'
     sf.write(audio_file_path, audio[1], audio[0], "PCM_16")
 
-    return [(history, text)], audio_file_path
+    return history,audio_file_path
+
+
+
+
+class CustomEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, Path):
+            return str(obj)
+        return super().default(obj)
+def load_model():
+    global hps,net_g,model
+
+    hps = utils.get_hparams_from_file(CONFIG_PATH)
+    net_g = SynthesizerTrn(
+    len(hps.symbols),
+    hps.data.filter_length // 2 + 1,
+    hps.train.segment_size // hps.data.hop_length,
+    n_speakers=hps.data.n_speakers,
+    **hps.model).cuda()
+
+    model = net_g.eval()
+    model = utils.load_checkpoint(MODEL_PATH, net_g, None)
+
+
+def add_model_fn(example_text, cover, speakerID, name_en, name_cn, language):
+
+    # 检查必填字段是否为空
+    if not speakerID or not name_en or not language:
+        raise gr.Error("Please fill in all required fields!")
+        return "Failed to add model"
+
+    ### 保存上传的文件
+
+    # 生成文件路径
+    model_save_dir = Path("models")
+    model_save_dir = model_save_dir / name_en
+    img_save_dir = model_save_dir
+    model_save_dir.mkdir(parents=True, exist_ok=True)
+
+    Model_name = name_en + ".pth"
+    model_save_dir = model_save_dir / Model_name
+
+    # 保存上传的图片
+    if cover is not None:
+        img = np.array(cover)
+        img = Image.fromarray(img)
+        img.save(os.path.join(img_save_dir, 'cover_white_background.png'))
+
+    #获取用户输入
+    new_model = {
+        "name_en": name_en,
+        "name_zh": name_cn,
+        "cover": img_save_dir / "cover.png",
+        "sid": speakerID,
+        "example": example_text,
+        "language": language,
+        "type": "single",
+        "model_path": model_save_dir
+    }
+
+    #写入json
+    with open("models/model_info.json", "r", encoding="utf-8") as f:
+        models_info = json.load(f)
+
+    models_info[name_en] = new_model
+    with open("models/model_info.json", "w") as f:
+        json.dump(models_info, f, cls=CustomEncoder)
+
+
+    return "Success"
+
+
+def clear_input_text():
+    return ""
+
+def clear_add_model_info():
+    return "",None,"","","",""
+
+def get_options():
+  with open("models/model_info.json", "r", encoding="utf-8") as f:
+    global models_info
+    models_info = json.load(f)
+
+  for i,model_info in models_info.items():
+    global name_en
+    name_en = model_info['name_en']
+
+
+def reset_options():
+  value_model_choice = models_info['Yuuka']['name_en']
+  value_speaker_id = models_info['Yuuka']['sid']
+  return value_model_choice,value_speaker_id
+
+def refresh_options():
+  get_options()
+  value_model_choice = models_info[speaker_choice]['name_en']
+  value_speaker_id = models_info[speaker_choice]['sid']
+  return value_model_choice,value_speaker_id
+
+def change_dropdown(choice):
+  global speaker_choice
+  speaker_choice = choice
+  global COVER
+  COVER = str(models_info[speaker_choice]['cover'])
+  global MODEL_PATH
+  MODEL_PATH = str(models_info[speaker_choice]['model_path'])
+  global MODEL_ZH_NAME
+  MODEL_ZH_NAME = str(models_info[speaker_choice]['name_zh'])
+  global EXAMPLE_TEXT
+  EXAMPLE_TEXT = str(models_info[speaker_choice]['example'])
+  global SELECTED_LANGUAGE
+  SELECTED_LANGUAGE = str(models_info[speaker_choice]['language'])
+
+  speaker_id_change = gr.update(value=str(models_info[speaker_choice]['sid']))
+  cover_change = gr.update(value='<div align="center">'
+                f'<img style="width:auto;height:512px;" src="file/{COVER}">' if COVER else ""
+                f'<a><strong>{speaker_choice}</strong></a>'
+                                                                                           '</div>')
+  title_change = gr.update(value=
+                '<div align="center">'
+                f'<h3><a><strong>{"语音名称: "}{MODEL_ZH_NAME}</strong></a>'
+                f'<h3><strong>{"checkpoint: "}{speaker_choice}</strong>'
+                                                                                           '</div>')
+
+
+  lan_change = gr.update(value=str(models_info[speaker_choice]['language']))
+
+  example_change = gr.update(value=EXAMPLE_TEXT)
+
+  VC_cover_change = gr.update(value=
+                '<div align="center">'
+                f'<img style="width:auto;height:512px;" src="file/{COVER}">' if COVER else "")
+
+  VC_title_change = gr.update(value=
+                '<div align="center">'
+                f'<h3><a><strong>{"语音名称: "}{MODEL_ZH_NAME}</strong></a>'
+                f'<h3><strong>{"checkpoint: "}{speaker_choice}</strong>')
+
+  ChatGPT_cover_change = gr.update(value='<div align="center">'
+                f'<img style="width:auto;height:512px;" src="file/{COVER}">' if COVER else ""
+                f'<a><strong>{speaker_choice}</strong></a>'
+                                                                                           '</div>')
+  ChatGPT_title_change = gr.update(value=
+                '<div align="center">'
+                f'<h3><a><strong>{"语音名称: "}{MODEL_ZH_NAME}</strong></a>'
+                f'<h3><strong>{"checkpoint: "}{speaker_choice}</strong>'
+                                                                                           '</div>')
+
+  load_model()
+
+  return [speaker_id_change,cover_change,title_change,lan_change,example_change,cover_change,title_change,lan_change,cover_change,title_change]
+
+
+def load_api_key(value):
+  openai.api_key = value
+
+def usr_input_update(value):
+  global USER_INPUT_TEXT
+  USER_INPUT_TEXT = value
+
+
+# def ChatGPT_Bot(history):
+#     response = openai.ChatCompletion.create(
+#       model="gpt-3.5-turbo",
+#       messages=[
+#           {"role": "system", "content": "You are a helpful assistant."},
+#           {"role": "user", "content": history}
+#         ]
+#     )
+#     text = response['choices'][0]['message']['content']
+
+#     audio = tts_fn(text, 0.6, 0.668, 1.0)
+#     audio_file_path = "output" + '.wav'
+#     sf.write(audio_file_path, audio[1], audio[0], "PCM_16")
+
+#     return [(history, text)],audio_file_path
+
+def ChatGPT_Bot(input,history):
+    response = openai.ChatCompletion.create(
+      model="gpt-3.5-turbo",
+      messages=[
+          {"role": "system", "content": "You are a helpful assistant."},
+          {"role": "user", "content": input}
+        ]
+    )
+    text = response['choices'][0]['message']['content']
+
+    history.append((input, text))
+
+    audio = tts_fn(text, 0.6, 0.668, 1.0)
+    audio_file_path = "output" + '.wav'
+    sf.write(audio_file_path, audio[1], audio[0], "PCM_16")
+
+    return history,audio_file_path
+
+def init():
+  global SELECTED_LANGUAGE
+  SELECTED_LANGUAGE = "JP"
+  global SPEAKER_ID
+  SPEAKER_ID = 0
+  global COVER
+  COVER = "models/Yuuka/cover.png"
+  global speaker_choice
+  speaker_choice = "Yuuka"
+  global MODEL_ZH_NAME
+  MODEL_ZH_NAME = "早濑优香"
+  global EXAMPLE_TEXT
+  EXAMPLE_TEXT = "先生。今日も全力であなたをアシストしますね。"
+  global CONFIG_PATH
+  CONFIG_PATH = "configs/config.json"
+  global MODEL_PATH
+  MODEL_PATH = "../drive/MyDrive/ML_Folder/Pytorch/Vits/G_4000.pth"
+
+  get_options()
+
 
 
 class CustomEncoder(json.JSONEncoder):
@@ -229,12 +485,6 @@ class CustomEncoder(json.JSONEncoder):
             return str(obj)
         return super().default(obj)
 
-
-class CustomEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, Path):
-            return str(obj)
-        return super().default(obj)
 
 download_audio_js = """
 () =>{{
@@ -267,13 +517,13 @@ download_audio_js = """
 
 if __name__ == '__main__':
 
+    init()
+
     with open("models/model_info.json", "r", encoding="utf-8") as f:
         models_info = json.load(f)
 
     for i, model_info in models_info.items():
         name_en = model_info['name_en']
-
-    get_options()
 
     theme = gr.themes.Base()
 
